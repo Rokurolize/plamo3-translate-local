@@ -25,6 +25,7 @@ This repo packages a *working* local translation service. Treat these as invaria
 - HTTP gating: `GateHandler` (URL token → HttpOnly cookie → 302; bearer token for API clients; hash-derived cookie value; 404 for everyone else). `version_string()` returns `nginx` on purpose.
 - CPU bug to avoid: a dead client raised `ConnectionError` in `handle_one_request()` and the server spun at ~123% of a core. `Handler.handle_one_request()` sets `close_connection = True` on `ConnectionError`; keep it.
 - WebUI behavior: `buildPrompt()` + `/v1/completions` (streaming), auto-reverse, `paintMirror()` highlight, guarded scroll sync, mobile-safe paste fallback, Fit/Full toggle. Test on a narrow viewport (iPhone SE, 375 px) after UI changes.
+- **Highlight invariant**: the mirror's reconstructed text must equal the textarea's `value` exactly. Paragraph separators are `\n` *or* `\n[ \t]*\n`, so `paraRanges()` records each real separator in `ranges.seps` and `paintMirror()` reuses it. Never hard-code `'\n\n'` or advance a range by a fixed 2 characters — single-newline text doubled the mirror's line count and slid the highlight out of sync.
 - Model files: `models.json` is the source of truth for URLs/sizes/hashes; `fetch-models.py` resumes via `.part` and verifies before renaming.
 
 ## Verification checklist

@@ -48,6 +48,7 @@ Adding a `rem` comment containing the Japanese project folder name to `start-pla
 - Pasting into a field triggers translation immediately. Mobile browsers generally won't run programmatic `paste()`, so the Paste button has a fallback: focus/select the old text and guide the user to the OS paste.
 - Auto reverse translation is **on** by default (verification), Sync scroll **off**, Highlight **on**. A Fit/Full toggle shrinks short results on phones (iPhone SE, 375 px) so nothing clips.
 - Paragraph highlighting uses a mirrored text layer aligned to the textarea's usable width; autoscroll is suppressed while the user is interacting.
+- **Highlight misalignment fix**: `paraRanges()` originally split on `\n` or `\n\n` but then advanced every range by a hard-coded 2 characters, and `paintMirror()` always re-inserted `'\n\n'`. For text separated by single newlines (common with Japanese input), the mirror had twice as many lines as the textarea, so the highlight drifted progressively downward. The mirror is now rebuilt with the exact separators recorded in `ranges.seps`; it reproduces the textarea value character-for-character. `paraAtCaret()` also maps a caret inside a separator to the following paragraph instead of incorrectly selecting the last one.
 - The UI rejects source text containing literal `<|plamo:` tokens with an inline error.
 
 ## Prompt formats

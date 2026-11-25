@@ -600,15 +600,20 @@ function clearBoard(board) {
 
 // ----- paragraph-aware scroll syncing ---------------------------------------
 function paraRanges(text) {
-  // Blank lines when present, otherwise plain newlines.
-  const sep = text.includes('\n\n') ? /\n[ \t]*\n/ : /\n/;
-  const parts = text.split(sep);
-  const ranges = [];
-  let pos = 0;
-  for (const part of parts) {
-    ranges.push([pos, pos + part.length]);
-    pos += part.length + 2;
+  // A paragraph break is a blank line when present, otherwise a single newline.
+  // Record the ACTUAL separator at each boundary: assuming every separator is
+  // '\n\n' (2 chars) shifts every later line when the text uses single newlines
+  // or blank lines containing spaces/tabs, which misaligns the highlight.
+  const sep = /\n[ \t]*\n|\n/g;
+  const ranges = [], seps = [];
+  let pos = 0, m;
+  while ((m = sep.exec(text)) !== null) {
+    ranges.push([pos, m.index]);
+    seps.push(m[0]);
+    pos = sep.lastIndex;
   }
+  ranges.push([pos, text.length]);
+  ranges.seps = seps;   // parallel to the gaps between ranges
   return ranges;
 }
 function paraIndexAt(el, ranges) {
@@ -632,8 +637,7 @@ function paintMirror(el, highlightIndex) {
   mirror.textContent = '';
   ranges.forEach((r, i) => {
     let part = el.value.slice(r[0], r[1]);
-    if (i < ranges.length - 1) part += '\n\n';
-    if (i === ranges.length - 1) part += '\n';  // trailing newline as browsers render it
+    if (i < ranges.length - 1) part += ranges.seps[i];  // rebuild with the real separator
     if (i === highlightIndex) {
       const mark = document.createElement('mark');
       mark.textContent = part;
@@ -647,7 +651,8 @@ function paintMirror(el, highlightIndex) {
 function paraAtCaret(el) {
   const pos = el.selectionStart ?? el.value.length;
   const ranges = paraRanges(el.value);
-  let idx = ranges.findIndex(r => pos >= r[0] && pos <= r[1]);
+  // A caret inside a separator belongs to the following paragraph, not the last one.
+  let idx = ranges.findIndex(r => pos <= r[1]);
   if (idx < 0) idx = ranges.length - 1;
   return Math.max(0, idx);
 }
