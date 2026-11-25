@@ -189,6 +189,11 @@
     font-size: 1rem;
     line-height: 1.1;
   }
+  .io-out .label .copyBtn {
+    padding: 2px 7px;
+    font-size: 1rem;
+    line-height: 1.1;
+  }
   .label-actions { display: flex; align-items: center; gap: 4px; }
   /* Transparent textarea over a mirrored text layer that paints the active paragraph */
   .field { position: relative; flex: 1; min-height: 0; width: 100%; display: flex; }
@@ -281,6 +286,7 @@
     .io-src .label button, .io-out .label button { padding: 3px 5px; font-size: 0.68rem; }
     .io-src .label .translateBtn { padding: 4px 8px; }
     .io-src .label .pasteBtn { padding: 2px 5px; font-size: 0.95rem; }
+    .io-out .label .copyBtn { padding: 2px 5px; font-size: 0.95rem; }
   }
 </style>
 </head>
@@ -331,7 +337,7 @@
         <div class="label">
           <span>Translation (English)</span>
           <span><span class="dstCount">0</span> chars</span>
-          <button class="copyBtn" title="Copy this translation">Copy</button>
+          <button class="copyBtn" title="Copy this translation to the clipboard" aria-label="Copy translation to clipboard">⧉</button>
         </div>
         <div class="field"><div class="mirror" aria-hidden="true"></div><textarea class="output" readonly placeholder="English translation appears here." aria-label="English translation result"></textarea></div>
       </div>
@@ -356,7 +362,7 @@
         <div class="label">
           <span>Translation (Japanese)</span>
           <span><span class="dstCount">0</span> chars</span>
-          <button class="copyBtn" title="Copy this translation">Copy</button>
+          <button class="copyBtn" title="Copy this translation to the clipboard" aria-label="Copy translation to clipboard">⧉</button>
         </div>
         <div class="field"><div class="mirror" aria-hidden="true"></div><textarea class="output" readonly placeholder="Japanese translation appears here." aria-label="Japanese translation result"></textarea></div>
       </div>
