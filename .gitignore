@@ -1,0 +1,19 @@
+# Secrets -- NEVER commit this file's contents
+.plamo_access_token
+*.token
+.env
+
+# Model weights (use fetch-models.py instead)
+*.gguf
+*.gguf.part
+*.old
+**/.cache/
+
+# Runtime / logs
+*.log
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.DS_Store
+Thumbs.db

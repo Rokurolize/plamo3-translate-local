@@ -1,0 +1,32 @@
+{
+  "upstream": "https://huggingface.co/collections/pfnet/plamo-3-translate",
+  "license": "PLaMo Community License (see each upstream GGUF repository)",
+  "quantization": "Q4_K_M",
+  "note": "Hashes below are for the files used during development. If upstream republishes a file, fetch-models.py will keep the .part file and report the mismatch; update this manifest deliberately.",
+  "models": [
+    {
+      "size": "0.8b",
+      "folder": "plamo-3-translate-0.8b-GGUF",
+      "file": "plamo-3-translate-0.8b-Q4_K_M.gguf",
+      "url": "https://huggingface.co/pfnet/plamo-3-translate-0.8b-GGUF/resolve/main/plamo-3-translate-0.8b-Q4_K_M.gguf?download=true",
+      "bytes": 573126848,
+      "sha256": "70891ec70dc7ab4205745a38307867c2881b99239f20327927633abfe4bc9ec6"
+    },
+    {
+      "size": "2b",
+      "folder": "plamo-3-translate-2b-GGUF",
+      "file": "plamo-3-translate-2b-Q4_K_M.gguf",
+      "url": "https://huggingface.co/pfnet/plamo-3-translate-2b-GGUF/resolve/main/plamo-3-translate-2b-Q4_K_M.gguf?download=true",
+      "bytes": 1807203040,
+      "sha256": "1ffd9073afcc70e35ccc942428aa2b73d7aa2b9ea779bf504b775369e0276c13"
+    },
+    {
+      "size": "8b",
+      "folder": "plamo-3-translate-8b-GGUF",
+      "file": "plamo-3-translate-8b-Q4_K_M.gguf",
+      "url": "https://huggingface.co/pfnet/plamo-3-translate-8b-GGUF/resolve/main/plamo-3-translate-8b-Q4_K_M.gguf?download=true",
+      "bytes": 5280445728,
+      "sha256": "94e5d3f91b421f7c8900ddaac27b11a19f7441426c954bbb25a2fd60a1640187"
+    }
+  ]
+}
