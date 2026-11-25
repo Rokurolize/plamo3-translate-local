@@ -170,8 +170,8 @@
     color: var(--muted);
     border-bottom: 1px solid var(--border);
   }
-  .io-src .label .name { white-space: nowrap; }
-  .io-src .label .count { margin-left: auto; white-space: nowrap; }
+  .io-src .label .name, .io-out .label .name { white-space: nowrap; }
+  .io-src .label .count, .io-out .label .count { margin-left: auto; white-space: nowrap; }
   .io-src .label button, .io-out .label button {
     padding: 3px 8px;
     font-size: 0.78rem;
@@ -282,7 +282,7 @@
   }
   @media (max-width: 400px) {
     /* Keep Clear / Paste / Translate fully visible on small phones. */
-    .io-src .label .count { display: none; }
+    .io-src .label .count, .io-out .label .count { display: none; }
     .io-src .label button, .io-out .label button { padding: 3px 5px; font-size: 0.68rem; }
     .io-src .label .translateBtn { padding: 4px 8px; }
     .io-src .label .pasteBtn { padding: 2px 5px; font-size: 0.95rem; }
@@ -335,9 +335,9 @@
       <div class="resize-handle" role="separator" aria-orientation="horizontal" aria-label="Drag to resize the original and translation boxes" tabindex="0" title="Drag to resize the two boxes (arrow keys also work)"></div>
       <div class="io io-out">
         <div class="label">
-          <span>Translation (English)</span>
-          <span><span class="dstCount">0</span> chars</span>
           <button class="copyBtn" title="Copy this translation to the clipboard" aria-label="Copy translation to clipboard">⧉</button>
+          <span class="name">Translation (English)</span>
+          <span class="count"><span class="dstCount">0</span> chars</span>
         </div>
         <div class="field"><div class="mirror" aria-hidden="true"></div><textarea class="output" readonly placeholder="English translation appears here." aria-label="English translation result"></textarea></div>
       </div>
@@ -360,9 +360,9 @@
       <div class="resize-handle" role="separator" aria-orientation="horizontal" aria-label="Drag to resize the original and translation boxes" tabindex="0" title="Drag to resize the two boxes (arrow keys also work)"></div>
       <div class="io io-out">
         <div class="label">
-          <span>Translation (Japanese)</span>
-          <span><span class="dstCount">0</span> chars</span>
           <button class="copyBtn" title="Copy this translation to the clipboard" aria-label="Copy translation to clipboard">⧉</button>
+          <span class="name">Translation (Japanese)</span>
+          <span class="count"><span class="dstCount">0</span> chars</span>
         </div>
         <div class="field"><div class="mirror" aria-hidden="true"></div><textarea class="output" readonly placeholder="Japanese translation appears here." aria-label="Japanese translation result"></textarea></div>
       </div>

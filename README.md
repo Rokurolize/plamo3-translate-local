@@ -7,7 +7,7 @@ Everything in this repo is stdlib Python + one self-contained HTML file. The onl
 ## Features
 
 - **Two permanent panels**: Japanese → English and English → Japanese at the same time.
-- **Icon controls**: a single 📋 button to the left of each "Original" label pastes clipboard text (replacing the old text) and translates immediately, or clears both boxes if the clipboard is empty. A matching ⧉ button on the far right of each "Translation" label copies the result. Auto-reverse verification and paragraph highlight included.
+- **Icon controls**: a single 📋 button to the left of each "Original" label pastes clipboard text (replacing the old text) and translates immediately, or clears both boxes if the clipboard is empty. A matching ⧉ button to the left of each "Translation" label copies the result. Auto-reverse verification and paragraph highlight included.
 - **Draggable divider** between Original and Translation in each panel — resize the two boxes to suit your reading (pointer drag, arrow keys, saved across reloads).
 - **Sync scroll on by default**: scrolling or clicking a paragraph in one field brings the matching paragraph into view in the other, using real line positions rather than character-count estimates.
 - **Live model switch** between `0.8b`, `2b`, and `8b` without restarting the manager or reconfiguring API clients (alias is always `plamo-3-translate`).
