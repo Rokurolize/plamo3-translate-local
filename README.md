@@ -7,7 +7,9 @@ Everything in this repo is stdlib Python + one self-contained HTML file. The onl
 ## Features
 
 - **Two permanent panels**: Japanese → English and English → Japanese at the same time.
-- **Paste-to-translate**, per-field Translate / Clear / Copy buttons, auto-reverse verification, paragraph highlight, optional sync scroll.
+- **Paste-to-translate**, per-field Translate / Clear / Copy buttons, auto-reverse verification, paragraph highlight.
+- **Draggable divider** between Original and Translation in each panel — resize the two boxes to suit your reading (pointer drag, arrow keys, saved across reloads).
+- **Sync scroll on by default**: scrolling or clicking a paragraph in one field brings the matching paragraph into view in the other, using real line positions rather than character-count estimates.
 - **Live model switch** between `0.8b`, `2b`, and `8b` without restarting the manager or reconfiguring API clients (alias is always `plamo-3-translate`).
 - **OpenAI-compatible** `/v1/completions` and `/v1/chat/completions` proxies, including SSE streaming.
 - **Token-gated public listener** for Tailscale Funnel; everyone else sees an ordinary 404 for every path.

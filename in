@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PLaMo 3 Translate</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --pane: #ffffff;
+    --text: #1f2328;
+    --muted: #6a737d;
+    --border: #d8dce1;
+    --accent: #2f6fdd;
+    --accent-text: #ffffff;
+    --ok: #1a7f37;
+    --err: #c0392b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171c;
+      --pane: #1d2128;
+      --text: #e6e9ee;
+      --muted: #9aa4b2;
+      --border: #333a45;
+      --accent: #5b93ec;
+      --accent-text: #10131a;
+      --ok: #4ac26b;
+      --err: #ff8a80;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, "Segoe UI", "Yu Gothic UI", "Hiragino Kaku Gothic ProN", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+  .topbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 12px 0;
+    min-height: 34px;
+  }
+  .topbar #status {
+    flex: 1;
+    min-width: 0;
+    font-size: 0.8rem;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  #status.ok { color: var(--ok); }
+  #status.err { color: var(--err); }
+  #status.busy { color: var(--muted); }
+  #menuBtn {
+    padding: 6px 12px;
+    font-size: 1rem;
+    line-height: 1;
+    flex: 0 0 auto;
+  }
+  #menuPanel {
+    position: absolute;
+    top: 40px;
+    right: 12px;
+    z-index: 20;
+    display: none;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+    background: var(--pane);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 8px 28px rgba(0,0,0,.35);
+  }
+  #menuPanel.open { display: flex; }
+  select, button {
+    font: inherit;
+    color: var(--text);
+    background: var(--pane);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+  }
+  button { cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-text);
+    font-weight: 600;
+    min-width: 130px;
+  }
+  button:disabled { opacity: 0.6; cursor: default; }
+  .autolabel { display: flex; align-items: center; gap: 6px; font-size: 0.85rem; color: var(--muted); cursor: pointer; white-space: nowrap; }
+  .autolabel input { accent-color: var(--accent); width: 16px; height: 16px; cursor: pointer; flex: 0 0 auto; }
+  .modelctl { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+  .boards {
+    display: flex;
+    flex-direction: row;
+    gap: 12px;
+    padding: 10px 16px 6px;
+    flex: 1;
+    min-height: 0;
+  }
+  .board {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 0;
+    min-width: 0;
+    background: var(--pane);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .board-body {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    gap: 4px;
+    padding: 8px;
+  }
+  .io {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 0;
+    min-height: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  /* Short input stays ~3 lines; the result gets all remaining room */
+  .io-src { flex: 0 0 auto; height: calc(6.5em + 32px); }  /* label + ~3-line field; drag handle overrides */
+  .io-out { flex: 1 1 0; }
+  /* Draggable divider between the original and translation boxes */
+  .resize-handle {
+    flex: 0 0 auto;
+    height: 10px;
+    cursor: row-resize;
+    touch-action: none;
+    position: relative;
+    border-radius: 5px;
+  }
+  .resize-handle::after {
+    content: "";
+    position: absolute;
+    left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    width: 48px; height: 3px;
+    border-radius: 3px;
+    background: var(--border);
+  }
+  .resize-handle:hover::after, .resize-handle:focus-visible::after,
+  body.resizing .resize-handle::after { background: var(--accent); }
+  body.resizing { cursor: row-resize; user-select: none; }
+  .io .label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    font-size: 0.8rem;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+  }
+  .io-src .label .name { white-space: nowrap; }
+  .io-src .label .count { margin-left: auto; white-space: nowrap; }
+  .io-src .label button, .io-out .label button {
+    padding: 3px 8px;
+    font-size: 0.78rem;
+    border-radius: 6px;
+  }
+  .io-src .label .translateBtn {
+    padding: 4px 14px;
+    font-weight: 600;
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-text);
+  }
+  .label-actions { display: flex; align-items: center; gap: 4px; }
+  /* Transparent textarea over a mirrored text layer that paints the active paragraph */
+  .field { position: relative; flex: 1; min-height: 0; width: 100%; display: flex; }
+  .field textarea { min-width: 0; width: 100%; }
+  .mirror {
+    position: absolute;
+    top: 0; left: 0;
+    overflow: hidden;
+    pointer-events: none;
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+    color: transparent;
+    background: transparent;
+    font: inherit;
+    font-size: 1rem;
+    line-height: 1.6;
+    padding: 12px;
+    border: 0;
+  }
+  .mirror mark {
+    color: transparent;
+    background: rgba(80, 150, 255, .22);
+    border-radius: 4px;
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+  }
+  .field textarea {
+    position: relative;
+    flex: 1;
+    background: transparent;
+    caret-color: var(--text);
+  }
+  .io-src .field { flex: 1 1 auto; width: 100%; min-height: 0; }
+  .io-src .field textarea, .io-src .mirror {
+    height: 100%;
+    min-height: 0;
+  }
+  .io-out .field textarea, .io-out .mirror { min-height: 0; }
+  .fitBtn { display: none; }
+  @media (max-width: 700px) {
+    .fitBtn { display: inline-block; padding: 2px 6px; font-size: 0.7rem; border-radius: 6px; }
+  }
+  textarea {
+    flex: 1;
+    resize: none;
+    border: 0;
+    outline: none;
+    padding: 12px;
+    font: inherit;
+    font-size: 1rem;
+    line-height: 1.6;
+    background: var(--pane);
+    color: var(--text);
+    min-height: 120px;
+  }
+  .io-src textarea {
+    flex: 0 0 auto;
+    height: 6.5em;      /* 3 lines at 1.6 line-height, plus padding */
+    min-height: 6.5em;
+  }
+  .io-out textarea { min-height: 0; }
+
+  @media (max-width: 900px) {
+    .topbar { padding: 4px 8px 0; }
+    .boards { flex-direction: column; overflow-y: auto; padding: 4px 8px 4px; gap: 6px; }
+    .board { flex: 1 1 0; min-height: 340px; }
+    .board-body { flex: 1; min-height: 0; gap: 4px; padding: 6px; }
+    .io { flex: 0 0 auto; }
+    .io-src { height: calc(5.8em + 28px); }
+    .io-out { flex: 1 1 0; min-height: 0; }
+    .resize-handle { height: 14px; }
+    .io .label { padding: 3px 6px; font-size: 0.72rem; }
+    .io-src .label button, .io-out .label button { font-size: 0.7rem; padding: 3px 6px; }
+    /* input ~3 lines; the result takes the rest of the panel */
+    textarea { line-height: 1.5; font-size: 15px; padding: 8px 10px; }
+    .io-src .field textarea, .io-src .mirror {
+      font-size: 15px; line-height: 1.5; padding: 8px 10px;
+    }
+    .io-out textarea, .io-out .mirror { flex: 1 1 auto; height: auto; min-height: 80px; font-size: 15px; line-height: 1.5; padding: 8px 10px; }
+    .boards.fit .io-out .field textarea, .boards.fit .io-out .mirror { height: 6em; min-height: 6em; flex: 0 0 auto; }
+    .boards.fit .board { flex: 0 0 auto; }
+  }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span id="status" role="status"></span>
+  <button id="menuBtn" title="Model, server and options" aria-label="Open menu">☰</button>
+</div>
+<div id="menuPanel">
+  <span class="modelctl">
+    <select id="modelSelect" aria-label="Model to use" title="Switch the loaded model">
+      <option value="8b">8B (quality)</option>
+      <option value="2b">2B (balanced)</option>
+      <option value="0.8b" selected>0.8B (speed)</option>
+    </select>
+  </span>
+  <span class="modelctl">
+    <button id="restartBtn" title="Restart the model server (reload the current model)">Restart</button>
+    <button id="powerBtn" title="Unload the model (stop the model server)">Stop</button>
+  </span>
+  <label class="autolabel" title="After each translation, translate the result back in the other panel for verification">
+    <input type="checkbox" id="autoReverse" checked> Auto reverse
+  </label>
+  <label class="autolabel" title="Highlight the paragraph you are reading in both fields">
+    <input type="checkbox" id="highlightSync" checked> Highlight
+  </label>
+  <label class="autolabel" title="Follow the matching paragraph in the other field when you scroll or click it">
+    <input type="checkbox" id="syncScroll" checked> Sync scroll
+  </label>
+</div>
+
+<main class="boards">
+  <section class="board" id="ja-en" data-target="en">
+    <div class="board-body">
+      <div class="io io-src">
+        <div class="label">
+          <span class="name">Original (Japanese)</span>
+          <span class="count"><span class="srcCount">0</span> chars</span>
+          <span class="label-actions">
+            <button class="clearBtn" title="Clear both boxes in this panel">Clear</button>
+            <button class="pasteBtn" title="Replace with clipboard and translate">Paste</button>
+            <button class="translateBtn" title="Translate this text">Translate</button>
+          </span>
+        </div>
+        <div class="field"><div class="mirror" aria-hidden="true"></div><textarea class="source" placeholder="日本語のテキストを貼り付け…" autofocus></textarea></div>
+      </div>
+      <div class="resize-handle" role="separator" aria-orientation="horizontal" aria-label="Drag to resize the original and translation boxes" tabindex="0" title="Drag to resize the two boxes (arrow keys also work)"></div>
+      <div class="io io-out">
+        <div class="label">
+          <span>Translation (English)</span>
+          <span><span class="dstCount">0</span> chars</span>
+          <button class="copyBtn" title="Copy this translation">Copy</button>
+        </div>
+        <div class="field"><div class="mirror" aria-hidden="true"></div><textarea class="output" readonly placeholder="English translation appears here." aria-label="English translation result"></textarea></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="board" id="en-ja" data-target="ja">
+    <div class="board-body">
+      <div class="io io-src">
+        <div class="label">
+          <span class="name">Original (English)</span>
+          <span class="count"><span class="srcCount">0</span> chars</span>
+          <span class="label-actions">
+            <button class="clearBtn" title="Clear both boxes in this panel">Clear</button>
+            <button class="pasteBtn" title="Replace with clipboard and translate">Paste</button>
+            <button class="translateBtn" title="Translate this text">Translate</button>
+          </span>
+        </div>
+        <div class="field"><div class="mirror" aria-hidden="true"></div><textarea class="source" placeholder="Paste English text here…"></textarea></div>
+      </div>
+      <div class="resize-handle" role="separator" aria-orientation="horizontal" aria-label="Drag to resize the original and translation boxes" tabindex="0" title="Drag to resize the two boxes (arrow keys also work)"></div>
+      <div class="io io-out">
+        <div class="label">
+          <span>Translation (Japanese)</span>
+          <span><span class="dstCount">0</span> chars</span>
+          <button class="copyBtn" title="Copy this translation">Copy</button>
+        </div>
+        <div class="field"><div class="mirror" aria-hidden="true"></div><textarea class="output" readonly placeholder="Japanese translation appears here." aria-label="Japanese translation result"></textarea></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+"use strict";
+// Same origin (served by manager.py, which proxies /v1/* to llama-server).
+// Works at http://127.0.0.1:8000/ and behind the Tailscale Funnel path prefix (/plamo/).
+const BASE = location.pathname.startsWith('/plamo') ? '/plamo' : '';
+const MODEL = "plamo-3-translate";
+const RESERVED = "<|plamo:";  // the model rejects these inside source text
+
+const $ = (id) => document.getElementById(id);
+const q = (board, sel) => board.querySelector(sel);
+const status = $("status");
+const BOARDS = Array.from(document.querySelectorAll('.board'));
+const modelSelect = $("modelSelect"), powerBtn = $("powerBtn"), restartBtn = $("restartBtn");
+const autoReverse = $("autoReverse"), syncScroll = $("syncScroll"), highlightSync = $("highlightSync");
+const menuBtn = $("menuBtn"), menuPanel = $("menuPanel");
+menuBtn.addEventListener("click", () => menuPanel.classList.toggle("open"));
+document.addEventListener("click", (e) => {
+  if (menuPanel.classList.contains("open") && !menuPanel.contains(e.target) && e.target !== menuBtn) menuPanel.classList.remove("open");
+});
+// A Fit/Full switch in each result label shrinks short results so no scrolling is needed (CSS shows it on phones only).
+document.querySelectorAll('.io-out .label').forEach(label => {
+  const b = document.createElement('button');
+  b.className = 'fitBtn';
+  b.textContent = 'Fit';
+  b.title = 'Toggle compact result height';
+  b.addEventListener('click', () => {
+    const on = document.querySelector('.boards').classList.toggle('fit');
+    document.querySelectorAll('.fitBtn').forEach(x => { x.textContent = on ? 'Full' : 'Fit'; });
+  });
+  label.appendChild(b);
+});
+const MODEL_LABEL = { "8b": "8B", "2b": "2B", "0.8b": "0.8B" };
+
+function setStatus(msg, kind) {
+  status.textContent = msg;
+  status.className = kind || "";
+}
+
+// ---- model manager controls -------------------------------------------------
+async function apiGet(path) {
+  const r = await fetch(BASE + path);
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  return r.json();
+}
+async function apiPost(path, body) {
+  const r = await fetch(BASE + path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body || {})
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error((data && data.error && data.error.message) ? data.error.message : ("HTTP " + r.status));
+  return data;
+}
+function setModelControlsEnabled(on) {
+  [modelSelect, powerBtn, restartBtn].forEach(el => { el.disabled = !on; });
+}
+function abortAll() {
+  BOARDS.forEach(board => {
+    if (board._controller) {
+      board._controller.abort();
+      board._controller = null;
+      q(board, '.translateBtn').textContent = "Translate";
+    }
+  });
+}
+async function refreshModelStatus() {
+  try {
+    const s = await apiGet("/api/status");
+    if (s.model) modelSelect.value = s.model; else if (s.lastModel) modelSelect.value = s.lastModel;
+    powerBtn.textContent = s.running ? "Stop" : "Start";
+    return s;
+  } catch (_) {
+    setModelControlsEnabled(false);
+    setStatus("Model controls unavailable: this page was not served by the manager. Start it with start-plamo.ps1, then reload this page.", "err");
+    return null;
+  }
+}
+async function switchModel(m) {
+  abortAll();
+  setModelControlsEnabled(false);
+  setStatus("Switching to PLaMo 3 Translate " + MODEL_LABEL[m] + "… (unload + load can take ~30 s)", "busy");
+  try {
+    const s = await apiPost("/api/switch", { model: m });
+    powerBtn.textContent = s.running ? "Stop" : "Start";
+    if (s.model) modelSelect.value = s.model;
+    setStatus("PLaMo 3 Translate " + MODEL_LABEL[m] + " is ready.", "ok");
+  } catch (e) {
+    setStatus("Could not switch model: " + e.message, "err");
+    refreshModelStatus();
+  } finally {
+    setModelControlsEnabled(true);
+  }
+}
+async function togglePower() {
+  const s = await refreshModelStatus();
+  if (!s) return;
+  setModelControlsEnabled(false);
+  try {
+    if (s.running) {
+      abortAll();
+      await apiPost("/api/stop", {});
+      powerBtn.textContent = "Start";
+      setStatus("Model server stopped (model unloaded). Click Start to load it again.", "busy");
+    } else {
+      await switchModel(modelSelect.value);
+      return;
+    }
+  } catch (e) {
+    setStatus("Error: " + e.message, "err");
+  } finally {
+    setModelControlsEnabled(true);
+  }
+}
+async function restartModel() {
+  abortAll();
+  setModelControlsEnabled(false);
+  setStatus("Restarting the model server…", "busy");
+  try {
+    const s = await apiPost("/api/restart", {});
+    powerBtn.textContent = s.running ? "Stop" : "Start";
+    setStatus("Model server restarted.", "ok");
+  } catch (e) {
+    setStatus("Could not restart: " + e.message, "err");
+    refreshModelStatus();
+  } finally {
+    setModelControlsEnabled(true);
+  }
+}
+modelSelect.addEventListener("change", () => switchModel(modelSelect.value));
+powerBtn.addEventListener("click", togglePower);
+restartBtn.addEventListener("click", restartModel);
+
+// ---- translation, one independent panel per direction ----------------------
+function buildPrompt(src, tgt) {
+  return "<|plamo:tag|>dataset<|plamo:msg|>translation"
+    + "<|plamo:tag|>input<|plamo:msg|>" + src
+    + "<|plamo:tag|>output<|plamo:key|>lang<|plamo:val|>" + tgt + "<|plamo:msg|>";
+}
+function updateCounts(board) {
+  q(board, '.srcCount').textContent = q(board, '.source').value.length;
+  q(board, '.dstCount').textContent = q(board, '.output').value.length;
+  if (board._updateHighlight) board._updateHighlight(q(board, '.source'));
+}
+
+async function translateBoard(board, autoTrigger = false) {
+  const source = q(board, '.source'), output = q(board, '.output');
+  const button = q(board, '.translateBtn');
+  if (board._controller) { board._controller.abort(); board._controller = null; return; }
+
+  const src = source.value.trim();
+  if (!src) { setStatus("Enter some text first.", "err"); source.focus(); return; }
+  if (src.includes(RESERVED)) {
+    setStatus("The source text contains reserved “<|plamo:…|>” tokens, which the model refuses to process. Remove them and try again.", "err");
+    return;
+  }
+
+  board._controller = new AbortController();
+  board._auto = autoTrigger;
+  button.textContent = "Stop";
+  setStatus("Translating " + board.id + "…", "busy");
+  output.value = "";
+  updateCounts(board);
+
+  try {
+    const res = await fetch(BASE + "/v1/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Accept": "text/event-stream" },
+      signal: board._controller.signal,
+      body: JSON.stringify({
+        model: MODEL,
+        prompt: buildPrompt(src, board.dataset.target),
+        temperature: 0,
+        max_tokens: Math.min(8192, Math.max(512, src.length * 2)),
+        stop: ["<|plamo:tag|>", "<|plamo:bos|>"],
+        stream: true
+      })
+    });
+    if (!res.ok) {
+      let msg = "HTTP " + res.status;
+      try {
+        const data = await res.json();
+        if (data && data.error && data.error.message) msg = data.error.message;
+      } catch (_) { /* keep HTTP status */ }
+      throw new Error(msg);
+    }
+    // SSE: "data: {…}\n\n" per token, finished by "data: [DONE]"
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n");
+      let idx;
+      while ((idx = buffer.indexOf("\n\n")) !== -1) {
+        const rawEvent = buffer.slice(0, idx);
+        buffer = buffer.slice(idx + 2);
+        for (const line of rawEvent.split("\n")) {
+          if (!line.startsWith("data:")) continue;
+          const payload = line.slice(5).trim();
+          if (payload === "[DONE]") continue;
+          try {
+            const chunk = JSON.parse(payload);
+            const t = chunk && chunk.choices && chunk.choices[0] && chunk.choices[0].text;
+            if (t) { output.value += t; updateCounts(board); }
+          } catch (_) { /* ignore unparseable keep-alive lines */ }
+        }
+      }
+    }
+    if (window.innerWidth <= 900) output.scrollIntoView({ block: "center", behavior: "smooth" });
+    // Round-trip verification: feed this result into the other panel once.
+    if (autoReverse.checked && !board._auto) {
+      const other = BOARDS.find(b => b !== board);
+      const result = output.value.trim();
+      if (other && result && !other._controller) {
+        q(other, '.source').value = result;
+        updateCounts(other);
+        setStatus("Back-translating " + other.id + "…", "busy");
+        translateBoard(other, true);   // loop guard: autoTrigger stops the chain here
+        return;
+      }
+    }
+    setStatus(board._auto ? "Round trip complete (" + board.id + ")." : board.id + " done.", "ok");
+    board._auto = false;
+  } catch (e) {
+    if (e.name === "AbortError") {
+      setStatus("Stopped. Partial translation kept.", "busy");
+    } else {
+      const msg = (e instanceof TypeError)
+        ? "Could not reach the model server. If it was stopped, click Start in the toolbar."
+        : e.message;
+      setStatus("Error: " + msg, "err");
+    }
+  } finally {
+    board._controller = null;
+    board._auto = false;
+    button.textContent = "Translate";
+    updateCounts(board);
+  }
+}
+
+async function copyTranslation(board) {
+  const text = q(board, '.output').value;
+  const button = q(board, '.copyBtn');
+  if (!text) { setStatus("Nothing to copy yet.", "err"); return; }
+  let copied = false;
+  try {
+    await navigator.clipboard.writeText(text);
+    copied = true;
+  } catch (_) {
+    const output = q(board, '.output');
+    output.focus();
+    output.select();
+    copied = document.execCommand("copy");
+    output.setSelectionRange(0, 0);
+  }
+  button.textContent = copied ? "Copied!" : "Copy failed";
+  setTimeout(() => { button.textContent = "Copy translation"; }, 1500);
+  if (copied) setStatus("Translation copied to the clipboard.", "ok");
+}
+
+function clearBoard(board) {
+  const source = q(board, '.source');
+  if (board._controller) board._controller.abort();
+  source.value = "";
+  q(board, '.output').value = "";
+  updateCounts(board);
+  setStatus("", "");
+  source.focus();
+}
+
+// ----- paragraph-aware scroll syncing ---------------------------------------
+function paraRanges(text) {
+  // A paragraph break is a blank line when present, otherwise a single newline.
+  // Record the ACTUAL separator at each boundary: assuming every separator is
+  // '\n\n' (2 chars) shifts every later line when the text uses single newlines
+  // or blank lines containing spaces/tabs, which misaligns the highlight.
+  const sep = /\n[ \t]*\n|\n/g;
+  const ranges = [], seps = [];
+  let pos = 0, m;
+  while ((m = sep.exec(text)) !== null) {
+    ranges.push([pos, m.index]);
+    seps.push(m[0]);
+    pos = sep.lastIndex;
+  }
+  ranges.push([pos, text.length]);
+  ranges.seps = seps;   // parallel to the gaps between ranges
+  return ranges;
+}
+function paraIndexAt(el, ranges) {
+  // Use the mirrored text's real line boxes: a character-count estimate picks
+  // the wrong paragraph whenever the two languages wrap into different lines.
+  const mirror = el.parentElement.querySelector('.mirror');
+  const nodes = mirror.querySelectorAll('[data-para]');
+  if (!nodes.length) return 0;
+  const scale = el.scrollHeight / Math.max(1, mirror.scrollHeight);
+  const centre = el.scrollTop + el.clientHeight * 0.3;
+  let best = 0, bestDist = Infinity;
+  nodes.forEach(node => {
+    const i = Number(node.dataset.para) || 0;
+    const mid = (node.offsetTop + node.offsetHeight / 2) * scale;
+    const d = Math.abs(mid - centre);
+    if (d < bestDist) { bestDist = d; best = i; }
+  });
+  return Math.min(best, Math.max(0, ranges.length - 1));
+}
+// ----- active-paragraph highlight -------------------------------------------
+function paintMirror(el, highlightIndex) {
+  const mirror = el.parentElement.querySelector('.mirror');
+  const ranges = paraRanges(el.value);
+  // Match the textarea's usable width so wrapping (and therefore the highlight) lines up.
+  mirror.style.width = el.clientWidth + 'px';
+  mirror.textContent = '';
+  ranges.forEach((r, i) => {
+    let part = el.value.slice(r[0], r[1]);
+    if (i < ranges.length - 1) part += ranges.seps[i];  // rebuild with the real separator
+    // Every paragraph is a positioned node so scroll sync can use real line boxes
+    // instead of guessing from character counts (which fails for unequal line lengths).
+    const node = document.createElement(i === highlightIndex ? 'mark' : 'span');
+    node.dataset.para = i;
+    node.textContent = part;
+    mirror.appendChild(node);
+  });
+  mirror.scrollTop = el.scrollTop;
+}
+function paraAtCaret(el) {
+  const pos = el.selectionStart ?? el.value.length;
+  const ranges = paraRanges(el.value);
+  // A caret inside a separator belongs to the following paragraph, not the last one.
+  let idx = ranges.findIndex(r => pos <= r[1]);
+  if (idx < 0) idx = ranges.length - 1;
+  return Math.max(0, idx);
+}
+function attachHighlight(board) {
+  const src = q(board, '.source'), out = q(board, '.output');
+  const update = (active) => {
+    if (!highlightSync.checked) {
+      [src, out].forEach(el => { el.parentElement.querySelector('.mirror').textContent = ''; });
+      return;
+    }
+    const a = paraRanges(src.value), b = paraRanges(out.value);
+    const fromSrc = active === src;
+    const idx = paraAtCaret(fromSrc ? src : out);
+    const srcIdx = fromSrc ? idx : Math.min(idx, Math.max(0, a.length - 1));
+    const outIdx = fromSrc ? Math.min(idx, Math.max(0, b.length - 1)) : idx;
+    paintMirror(src, src.value ? srcIdx : -1);
+    paintMirror(out, out.value ? outIdx : -1);
+    // Clicking/caret-moving in one field brings the matching paragraph into view in the other.
+    if (board._syncCaret && out.value && src.value) board._syncCaret(active);
+  };
+  [src, out].forEach(el => {
+    ['focus', 'click', 'keyup', 'input', 'select'].forEach(ev => el.addEventListener(ev, () => update(el)));
+    el.addEventListener('scroll', () => {
+      el.parentElement.querySelector('.mirror').scrollTop = el.scrollTop;
+    });
+  });
+  board._updateHighlight = update;
+  update(src);
+}
+highlightSync.addEventListener('change', () => BOARDS.forEach(b => b._updateHighlight(b.querySelector('.source'))));
+window.addEventListener('resize', () => BOARDS.forEach(b => {
+  const srcIo = q(b, '.io-src');
+  if (srcIo.style.height) applySrcHeight(b, parseFloat(srcIo.style.height));  // re-clamp after viewport change
+  else b._updateHighlight(b.querySelector('.source'));
+}));
+
+// Middle-click autoscroll keeps firing scroll events while the button is held. Syncing those
+// would drag the paired field along and make the two fields fight over scrollTop, so suppress it.
+let autoscrolling = false;
+window.addEventListener('mousedown', (e) => {
+  if (e.button === 1) autoscrolling = true;   // middle button pressed: autoscroll begins
+  else autoscrolling = false;                 // any other click stops Chrome's autoscroll
+});
+window.addEventListener('keydown', () => { autoscrolling = false; });
+
+function scrollToPara(el, idx) {
+  const mirror = el.parentElement.querySelector('.mirror');
+  const nodes = mirror.querySelectorAll('[data-para]');
+  const node = nodes[Math.min(idx, nodes.length - 1)];
+  if (!node) return;
+  const scale = el.scrollHeight / Math.max(1, mirror.scrollHeight);
+  const top = Math.max(0, node.offsetTop * scale - 8);  // a little breathing room
+  const max = Math.max(0, el.scrollHeight - el.clientHeight);
+  if (Math.abs(el.scrollTop - Math.min(top, max)) < 2) return;
+  el._syncSetAt = performance.now();                    // suppress the echo scroll event
+  el.scrollTop = Math.min(top, max);
+}
+function attachScrollSync(board) {
+  const src = q(board, '.source'), out = q(board, '.output');
+  const follow = (from, to, idx) => {
+    if (!syncScroll.checked || autoscrolling || !from.value || !to.value) return;
+    scrollToPara(to, Math.min(idx, Math.max(0, paraRanges(to.value).length - 1)));
+  };
+  const sync = (from, to) => {
+    const now = performance.now();
+    if (!syncScroll.checked || autoscrolling) return;
+    if (now - (from._syncSetAt || 0) < 150) return;    // echo from a scroll we just wrote
+    if (paraRanges(from.value).length < 2 || paraRanges(to.value).length < 2) return;
+    follow(from, to, paraIndexAt(from, paraRanges(from.value)));
+  };
+  src.addEventListener('scroll', () => sync(src, out));
+  out.addEventListener('scroll', () => sync(out, src));
+  // Also follow the paragraph the reader clicked / placed the caret in.
+  board._syncCaret = (active) => follow(active, active === src ? out : src, paraAtCaret(active));
+}
+
+// ----- draggable divider between Original and Translation --------------------
+const SRC_H_KEY = 'plamo-src-height-';
+function applySrcHeight(board, height) {
+  const srcIo = q(board, '.io-src');
+  const body = q(board, '.board-body');
+  const handle = q(board, '.resize-handle');
+  const minSrc = 70, minOut = 90;
+  const max = Math.max(minSrc, body.clientHeight - minOut - handle.offsetHeight - 16);
+  const h = Math.max(minSrc, Math.min(max, height));
+  srcIo.style.height = h + 'px';
+  // Fill the resized box instead of keeping the stylesheet's fixed 3-line height.
+  [q(board, '.source'), q(board, '.io-src .mirror')].forEach(el => {
+    el.style.height = '100%';
+    el.style.minHeight = '0';
+  });
+  if (board._updateHighlight) board._updateHighlight(q(board, '.source'));
+  try { localStorage.setItem(SRC_H_KEY + board.id, String(h)); } catch (_) {}
+}
+function attachResizer(board) {
+  const handle = q(board, '.resize-handle');
+  let dragging = false, startY = 0, startH = 0;
+  handle.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    e.preventDefault();
+    dragging = true;
+    startY = e.clientY;
+    startH = q(board, '.io-src').getBoundingClientRect().height;
+    handle.setPointerCapture(e.pointerId);
+    document.body.classList.add('resizing');
+  });
+  handle.addEventListener('pointermove', (e) => {
+    if (dragging) applySrcHeight(board, startH + (e.clientY - startY));
+  });
+  const finish = (e) => {
+    if (!dragging) return;
+    dragging = false;
+    if (handle.hasPointerCapture(e.pointerId)) handle.releasePointerCapture(e.pointerId);
+    document.body.classList.remove('resizing');
+  };
+  handle.addEventListener('pointerup', finish);
+  handle.addEventListener('pointercancel', finish);
+  handle.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+    e.preventDefault();
+    applySrcHeight(board, q(board, '.io-src').getBoundingClientRect().height + (e.key === 'ArrowDown' ? 16 : -16));
+  });
+  try {
+    const saved = Number(localStorage.getItem(SRC_H_KEY + board.id));
+    if (saved > 0) applySrcHeight(board, saved);
+  } catch (_) {}
+}
+
+async function pasteNew(board) {
+  const source = q(board, '.source');
+  if (navigator.clipboard && navigator.clipboard.readText) {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!text || !text.trim()) { setStatus("Clipboard is empty.", "err"); return; }
+      if (text.includes(RESERVED)) {
+        setStatus("The clipboard text contains reserved “<|plamo:…|>” tokens that the model rejects.", "err");
+        return;
+      }
+      if (board._controller) { board._controller.abort(); board._controller = null; }
+      source.value = text;                 // replace the previous text entirely
+      updateCounts(board);
+      translateBoard(board);               // and translate it right away
+      return;
+    } catch (_) { /* mobile Chrome often denies clipboard.readText: fall through */ }
+  }
+  // Mobile-safe fallback: focus and select the old text, then ask the browser to paste.
+  // Most mobile browsers won't run paste() from a script, so guide the user with a visible selection ready.
+  source.focus();
+  source.select();
+  setStatus("Old text selected — long-press the field and choose 貼り付け / Paste, then it translates automatically.", "busy");
+}
+
+BOARDS.forEach(board => {
+  const source = q(board, '.source');
+  attachHighlight(board);
+  attachScrollSync(board);
+  attachResizer(board);
+  q(board, '.translateBtn').addEventListener("click", () => translateBoard(board));
+  q(board, '.copyBtn').addEventListener("click", () => copyTranslation(board));
+  q(board, '.clearBtn').addEventListener("click", () => clearBoard(board));
+  q(board, '.pasteBtn').addEventListener("click", () => pasteNew(board));
+  source.addEventListener("input", () => updateCounts(board));
+  // Paste inserts the clipboard text and immediately translates this direction.
+  source.addEventListener("paste", (e) => {
+    const text = e.clipboardData && e.clipboardData.getData("text/plain");
+    if (text == null) return;  // non-text clipboard content: let the browser handle it
+    e.preventDefault();
+    let inserted = false;
+    try { inserted = document.execCommand("insertText", false, text); } catch (_) { inserted = false; }
+    if (!inserted) source.setRangeText(text, source.selectionStart, source.selectionEnd, "end");
+    updateCounts(board);
+    if (source.value.trim()) translateBoard(board);
+  });
+  source.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") translateBoard(board);
+  });
+  updateCounts(board);
+});
+
+refreshModelStatus();
+</script>
+</body>
+</html>

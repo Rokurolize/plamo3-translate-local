@@ -124,7 +124,7 @@
     flex-direction: column;
     flex: 1;
     min-height: 0;
-    gap: 8px;
+    gap: 4px;
     padding: 8px;
   }
   .io {
@@ -137,8 +137,29 @@
     overflow: hidden;
   }
   /* Short input stays ~3 lines; the result gets all remaining room */
-  .io-src { flex: 0 0 auto; }
+  .io-src { flex: 0 0 auto; height: calc(6.5em + 32px); }  /* label + ~3-line field; drag handle overrides */
   .io-out { flex: 1 1 0; }
+  /* Draggable divider between the original and translation boxes */
+  .resize-handle {
+    flex: 0 0 auto;
+    height: 10px;
+    cursor: row-resize;
+    touch-action: none;
+    position: relative;
+    border-radius: 5px;
+  }
+  .resize-handle::after {
+    content: "";
+    position: absolute;
+    left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    width: 48px; height: 3px;
+    border-radius: 3px;
+    background: var(--border);
+  }
+  .resize-handle:hover::after, .resize-handle:focus-visible::after,
+  body.resizing .resize-handle::after { background: var(--accent); }
+  body.resizing { cursor: row-resize; user-select: none; }
   .io .label {
     display: flex;
     justify-content: space-between;
@@ -195,10 +216,10 @@
     background: transparent;
     caret-color: var(--text);
   }
-  .io-src .field { flex: 0 0 auto; width: 100%; }
+  .io-src .field { flex: 1 1 auto; width: 100%; min-height: 0; }
   .io-src .field textarea, .io-src .mirror {
-    height: 6.5em;
-    min-height: 6.5em;
+    height: 100%;
+    min-height: 0;
   }
   .io-out .field textarea, .io-out .mirror { min-height: 0; }
   .fitBtn { display: none; }
@@ -229,20 +250,27 @@
     .topbar { padding: 4px 8px 0; }
     .boards { flex-direction: column; overflow-y: auto; padding: 4px 8px 4px; gap: 6px; }
     .board { flex: 1 1 0; min-height: 340px; }
-    .board-body { flex: 1; min-height: 0; gap: 6px; padding: 6px; }
+    .board-body { flex: 1; min-height: 0; gap: 4px; padding: 6px; }
     .io { flex: 0 0 auto; }
+    .io-src { height: calc(5.8em + 28px); }
     .io-out { flex: 1 1 0; min-height: 0; }
+    .resize-handle { height: 14px; }
     .io .label { padding: 3px 6px; font-size: 0.72rem; }
     .io-src .label button, .io-out .label button { font-size: 0.7rem; padding: 3px 6px; }
     /* input ~3 lines; the result takes the rest of the panel */
     textarea { line-height: 1.5; font-size: 15px; padding: 8px 10px; }
     .io-src .field textarea, .io-src .mirror {
-      height: 5.8em; min-height: 5.8em;
       font-size: 15px; line-height: 1.5; padding: 8px 10px;
     }
     .io-out textarea, .io-out .mirror { flex: 1 1 auto; height: auto; min-height: 80px; font-size: 15px; line-height: 1.5; padding: 8px 10px; }
     .boards.fit .io-out .field textarea, .boards.fit .io-out .mirror { height: 6em; min-height: 6em; flex: 0 0 auto; }
     .boards.fit .board { flex: 0 0 auto; }
+  }
+  @media (max-width: 400px) {
+    /* Keep Clear / Paste / Translate fully visible on small phones. */
+    .io-src .label .count { display: none; }
+    .io-src .label button, .io-out .label button { padding: 3px 5px; font-size: 0.68rem; }
+    .io-src .label .translateBtn { padding: 4px 8px; }
   }
 </style>
 </head>
@@ -269,8 +297,8 @@
   <label class="autolabel" title="Highlight the paragraph you are reading in both fields">
     <input type="checkbox" id="highlightSync" checked> Highlight
   </label>
-  <label class="autolabel" title="Scroll the original and translation to matching paragraphs together">
-    <input type="checkbox" id="syncScroll"> Sync scroll
+  <label class="autolabel" title="Follow the matching paragraph in the other field when you scroll or click it">
+    <input type="checkbox" id="syncScroll" checked> Sync scroll
   </label>
 </div>
 
@@ -289,6 +317,7 @@
         </div>
         <div class="field"><div class="mirror" aria-hidden="true"></div><textarea class="source" placeholder="日本語のテキストを貼り付け…" autofocus></textarea></div>
       </div>
+      <div class="resize-handle" role="separator" aria-orientation="horizontal" aria-label="Drag to resize the original and translation boxes" tabindex="0" title="Drag to resize the two boxes (arrow keys also work)"></div>
       <div class="io io-out">
         <div class="label">
           <span>Translation (English)</span>
@@ -314,6 +343,7 @@
         </div>
         <div class="field"><div class="mirror" aria-hidden="true"></div><textarea class="source" placeholder="Paste English text here…"></textarea></div>
       </div>
+      <div class="resize-handle" role="separator" aria-orientation="horizontal" aria-label="Drag to resize the original and translation boxes" tabindex="0" title="Drag to resize the two boxes (arrow keys also work)"></div>
       <div class="io io-out">
         <div class="label">
           <span>Translation (Japanese)</span>
@@ -617,16 +647,21 @@ function paraRanges(text) {
   return ranges;
 }
 function paraIndexAt(el, ranges) {
-  // Paragraph whose estimated vertical centre is closest to the viewport centre.
-  const centre = el.scrollTop + el.clientHeight * 0.25;
+  // Use the mirrored text's real line boxes: a character-count estimate picks
+  // the wrong paragraph whenever the two languages wrap into different lines.
+  const mirror = el.parentElement.querySelector('.mirror');
+  const nodes = mirror.querySelectorAll('[data-para]');
+  if (!nodes.length) return 0;
+  const scale = el.scrollHeight / Math.max(1, mirror.scrollHeight);
+  const centre = el.scrollTop + el.clientHeight * 0.3;
   let best = 0, bestDist = Infinity;
-  for (let i = 0; i < ranges.length; i++) {
-    const midChar = (ranges[i][0] + ranges[i][1]) / 2;
-    const y = (midChar / Math.max(1, el.value.length)) * el.scrollHeight;
-    const d = Math.abs(y - centre);
+  nodes.forEach(node => {
+    const i = Number(node.dataset.para) || 0;
+    const mid = (node.offsetTop + node.offsetHeight / 2) * scale;
+    const d = Math.abs(mid - centre);
     if (d < bestDist) { bestDist = d; best = i; }
-  }
-  return best;
+  });
+  return Math.min(best, Math.max(0, ranges.length - 1));
 }
 // ----- active-paragraph highlight -------------------------------------------
 function paintMirror(el, highlightIndex) {
@@ -638,13 +673,12 @@ function paintMirror(el, highlightIndex) {
   ranges.forEach((r, i) => {
     let part = el.value.slice(r[0], r[1]);
     if (i < ranges.length - 1) part += ranges.seps[i];  // rebuild with the real separator
-    if (i === highlightIndex) {
-      const mark = document.createElement('mark');
-      mark.textContent = part;
-      mirror.appendChild(mark);
-    } else {
-      mirror.appendChild(document.createTextNode(part));
-    }
+    // Every paragraph is a positioned node so scroll sync can use real line boxes
+    // instead of guessing from character counts (which fails for unequal line lengths).
+    const node = document.createElement(i === highlightIndex ? 'mark' : 'span');
+    node.dataset.para = i;
+    node.textContent = part;
+    mirror.appendChild(node);
   });
   mirror.scrollTop = el.scrollTop;
 }
@@ -670,6 +704,8 @@ function attachHighlight(board) {
     const outIdx = fromSrc ? Math.min(idx, Math.max(0, b.length - 1)) : idx;
     paintMirror(src, src.value ? srcIdx : -1);
     paintMirror(out, out.value ? outIdx : -1);
+    // Clicking/caret-moving in one field brings the matching paragraph into view in the other.
+    if (board._syncCaret && out.value && src.value) board._syncCaret(active);
   };
   [src, out].forEach(el => {
     ['focus', 'click', 'keyup', 'input', 'select'].forEach(ev => el.addEventListener(ev, () => update(el)));
@@ -681,7 +717,11 @@ function attachHighlight(board) {
   update(src);
 }
 highlightSync.addEventListener('change', () => BOARDS.forEach(b => b._updateHighlight(b.querySelector('.source'))));
-window.addEventListener('resize', () => BOARDS.forEach(b => b._updateHighlight(b.querySelector('.source'))));
+window.addEventListener('resize', () => BOARDS.forEach(b => {
+  const srcIo = q(b, '.io-src');
+  if (srcIo.style.height) applySrcHeight(b, parseFloat(srcIo.style.height));  // re-clamp after viewport change
+  else b._updateHighlight(b.querySelector('.source'));
+}));
 
 // Middle-click autoscroll keeps firing scroll events while the button is held. Syncing those
 // would drag the paired field along and make the two fields fight over scrollTop, so suppress it.
@@ -692,22 +732,87 @@ window.addEventListener('mousedown', (e) => {
 });
 window.addEventListener('keydown', () => { autoscrolling = false; });
 
+function scrollToPara(el, idx) {
+  const mirror = el.parentElement.querySelector('.mirror');
+  const nodes = mirror.querySelectorAll('[data-para]');
+  const node = nodes[Math.min(idx, nodes.length - 1)];
+  if (!node) return;
+  const scale = el.scrollHeight / Math.max(1, mirror.scrollHeight);
+  const top = Math.max(0, node.offsetTop * scale - 8);  // a little breathing room
+  const max = Math.max(0, el.scrollHeight - el.clientHeight);
+  if (Math.abs(el.scrollTop - Math.min(top, max)) < 2) return;
+  el._syncSetAt = performance.now();                    // suppress the echo scroll event
+  el.scrollTop = Math.min(top, max);
+}
 function attachScrollSync(board) {
   const src = q(board, '.source'), out = q(board, '.output');
+  const follow = (from, to, idx) => {
+    if (!syncScroll.checked || autoscrolling || !from.value || !to.value) return;
+    scrollToPara(to, Math.min(idx, Math.max(0, paraRanges(to.value).length - 1)));
+  };
   const sync = (from, to) => {
     const now = performance.now();
     if (!syncScroll.checked || autoscrolling) return;
-    if (now - (from._syncSetAt || 0) < 150) return;  // echo from a scroll we just wrote to this field
-    const a = paraRanges(from.value), b = paraRanges(to.value);
-    if (a.length < 2 || b.length < 2) return;        // nothing meaningful to align
-    const idx = paraIndexAt(from, a);
-    const target = Math.min(idx, b.length - 1);
-    const frac = target / Math.max(1, a.length - 1); // same relative paragraph progress
-    to._syncSetAt = now;                             // mark it so its scroll event won't echo back
-    to.scrollTop = frac * Math.max(0, to.scrollHeight - to.clientHeight);
+    if (now - (from._syncSetAt || 0) < 150) return;    // echo from a scroll we just wrote
+    if (paraRanges(from.value).length < 2 || paraRanges(to.value).length < 2) return;
+    follow(from, to, paraIndexAt(from, paraRanges(from.value)));
   };
   src.addEventListener('scroll', () => sync(src, out));
   out.addEventListener('scroll', () => sync(out, src));
+  // Also follow the paragraph the reader clicked / placed the caret in.
+  board._syncCaret = (active) => follow(active, active === src ? out : src, paraAtCaret(active));
+}
+
+// ----- draggable divider between Original and Translation --------------------
+const SRC_H_KEY = 'plamo-src-height-';
+function applySrcHeight(board, height) {
+  const srcIo = q(board, '.io-src');
+  const body = q(board, '.board-body');
+  const handle = q(board, '.resize-handle');
+  const minSrc = 70, minOut = 90;
+  const max = Math.max(minSrc, body.clientHeight - minOut - handle.offsetHeight - 16);
+  const h = Math.max(minSrc, Math.min(max, height));
+  srcIo.style.height = h + 'px';
+  // Fill the resized box instead of keeping the stylesheet's fixed 3-line height.
+  [q(board, '.source'), q(board, '.io-src .mirror')].forEach(el => {
+    el.style.height = '100%';
+    el.style.minHeight = '0';
+  });
+  if (board._updateHighlight) board._updateHighlight(q(board, '.source'));
+  try { localStorage.setItem(SRC_H_KEY + board.id, String(h)); } catch (_) {}
+}
+function attachResizer(board) {
+  const handle = q(board, '.resize-handle');
+  let dragging = false, startY = 0, startH = 0;
+  handle.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    e.preventDefault();
+    dragging = true;
+    startY = e.clientY;
+    startH = q(board, '.io-src').getBoundingClientRect().height;
+    handle.setPointerCapture(e.pointerId);
+    document.body.classList.add('resizing');
+  });
+  handle.addEventListener('pointermove', (e) => {
+    if (dragging) applySrcHeight(board, startH + (e.clientY - startY));
+  });
+  const finish = (e) => {
+    if (!dragging) return;
+    dragging = false;
+    if (handle.hasPointerCapture(e.pointerId)) handle.releasePointerCapture(e.pointerId);
+    document.body.classList.remove('resizing');
+  };
+  handle.addEventListener('pointerup', finish);
+  handle.addEventListener('pointercancel', finish);
+  handle.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+    e.preventDefault();
+    applySrcHeight(board, q(board, '.io-src').getBoundingClientRect().height + (e.key === 'ArrowDown' ? 16 : -16));
+  });
+  try {
+    const saved = Number(localStorage.getItem(SRC_H_KEY + board.id));
+    if (saved > 0) applySrcHeight(board, saved);
+  } catch (_) {}
 }
 
 async function pasteNew(board) {
@@ -738,6 +843,7 @@ BOARDS.forEach(board => {
   const source = q(board, '.source');
   attachHighlight(board);
   attachScrollSync(board);
+  attachResizer(board);
   q(board, '.translateBtn').addEventListener("click", () => translateBoard(board));
   q(board, '.copyBtn').addEventListener("click", () => copyTranslation(board));
   q(board, '.clearBtn').addEventListener("click", () => clearBoard(board));
