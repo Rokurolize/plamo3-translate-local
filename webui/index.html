@@ -184,6 +184,11 @@
     border-color: var(--accent);
     color: var(--accent-text);
   }
+  .io-src .label .pasteBtn {
+    padding: 2px 7px;
+    font-size: 1rem;
+    line-height: 1.1;
+  }
   .label-actions { display: flex; align-items: center; gap: 4px; }
   /* Transparent textarea over a mirrored text layer that paints the active paragraph */
   .field { position: relative; flex: 1; min-height: 0; width: 100%; display: flex; }
@@ -275,6 +280,7 @@
     .io-src .label .count { display: none; }
     .io-src .label button, .io-out .label button { padding: 3px 5px; font-size: 0.68rem; }
     .io-src .label .translateBtn { padding: 4px 8px; }
+    .io-src .label .pasteBtn { padding: 2px 5px; font-size: 0.95rem; }
   }
 </style>
 </head>
@@ -311,11 +317,10 @@
     <div class="board-body">
       <div class="io io-src">
         <div class="label">
+          <button class="pasteBtn" title="Paste clipboard text here (replaces both boxes and translates). If the clipboard is empty, clear both boxes." aria-label="Paste from clipboard, or clear if the clipboard is empty">📋</button>
           <span class="name">Original (Japanese)</span>
           <span class="count"><span class="srcCount">0</span> chars</span>
           <span class="label-actions">
-            <button class="clearBtn" title="Clear both boxes in this panel">Clear</button>
-            <button class="pasteBtn" title="Replace with clipboard and translate">Paste</button>
             <button class="translateBtn" title="Translate this text">Translate</button>
           </span>
         </div>
@@ -337,11 +342,10 @@
     <div class="board-body">
       <div class="io io-src">
         <div class="label">
+          <button class="pasteBtn" title="Paste clipboard text here (replaces both boxes and translates). If the clipboard is empty, clear both boxes." aria-label="Paste from clipboard, or clear if the clipboard is empty">📋</button>
           <span class="name">Original (English)</span>
           <span class="count"><span class="srcCount">0</span> chars</span>
           <span class="label-actions">
-            <button class="clearBtn" title="Clear both boxes in this panel">Clear</button>
-            <button class="pasteBtn" title="Replace with clipboard and translate">Paste</button>
             <button class="translateBtn" title="Translate this text">Translate</button>
           </span>
         </div>
@@ -830,7 +834,11 @@ async function pasteNew(board) {
   if (navigator.clipboard && navigator.clipboard.readText) {
     try {
       const text = await navigator.clipboard.readText();
-      if (!text || !text.trim()) { setStatus("Clipboard is empty.", "err"); return; }
+      if (!text || !text.trim()) {
+        clearBoard(board);
+        setStatus("Clipboard was empty — both boxes cleared.", "busy");
+        return;
+      }
       if (text.includes(RESERVED)) {
         setStatus("The clipboard text contains reserved “<|plamo:…|>” tokens that the model rejects.", "err");
         return;
@@ -856,7 +864,6 @@ BOARDS.forEach(board => {
   attachResizer(board);
   q(board, '.translateBtn').addEventListener("click", () => translateBoard(board));
   q(board, '.copyBtn').addEventListener("click", () => copyTranslation(board));
-  q(board, '.clearBtn').addEventListener("click", () => clearBoard(board));
   q(board, '.pasteBtn').addEventListener("click", () => pasteNew(board));
   source.addEventListener("input", () => updateCounts(board));
   // Paste inserts the clipboard text and immediately translates this direction.
