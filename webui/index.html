@@ -222,6 +222,9 @@
     min-height: 0;
   }
   .io-out .field textarea, .io-out .mirror { min-height: 0; }
+  /* The highlight mirror MUST have a definite height, otherwise it grows to
+     its content and scrollTop is stuck at 0 while the textarea scrolls. */
+  .io-out .mirror { height: 100%; }
   .fitBtn { display: none; }
   @media (max-width: 700px) {
     .fitBtn { display: inline-block; padding: 2px 6px; font-size: 0.7rem; border-radius: 6px; }
@@ -263,6 +266,7 @@
       font-size: 15px; line-height: 1.5; padding: 8px 10px;
     }
     .io-out textarea, .io-out .mirror { flex: 1 1 auto; height: auto; min-height: 80px; font-size: 15px; line-height: 1.5; padding: 8px 10px; }
+    .io-out .mirror { height: 100%; min-height: 0; }
     .boards.fit .io-out .field textarea, .boards.fit .io-out .mirror { height: 6em; min-height: 6em; flex: 0 0 auto; }
     .boards.fit .board { flex: 0 0 auto; }
   }
@@ -664,6 +668,14 @@ function paraIndexAt(el, ranges) {
   return Math.min(best, Math.max(0, ranges.length - 1));
 }
 // ----- active-paragraph highlight -------------------------------------------
+function syncMirrorScroll(el) {
+  // Map the textarea's scroll position onto the mirror. A proportional mapping
+  // avoids a residual offset when the two scroll ranges differ by a few pixels.
+  const mirror = el.parentElement.querySelector('.mirror');
+  const taMax = Math.max(0, el.scrollHeight - el.clientHeight);
+  const mirMax = Math.max(0, mirror.scrollHeight - mirror.clientHeight);
+  mirror.scrollTop = (taMax > 0 && mirMax > 0) ? (el.scrollTop / taMax) * mirMax : 0;
+}
 function paintMirror(el, highlightIndex) {
   const mirror = el.parentElement.querySelector('.mirror');
   const ranges = paraRanges(el.value);
@@ -680,7 +692,7 @@ function paintMirror(el, highlightIndex) {
     node.textContent = part;
     mirror.appendChild(node);
   });
-  mirror.scrollTop = el.scrollTop;
+  syncMirrorScroll(el);
 }
 function paraAtCaret(el) {
   const pos = el.selectionStart ?? el.value.length;
@@ -709,9 +721,7 @@ function attachHighlight(board) {
   };
   [src, out].forEach(el => {
     ['focus', 'click', 'keyup', 'input', 'select'].forEach(ev => el.addEventListener(ev, () => update(el)));
-    el.addEventListener('scroll', () => {
-      el.parentElement.querySelector('.mirror').scrollTop = el.scrollTop;
-    });
+    el.addEventListener('scroll', () => syncMirrorScroll(el));
   });
   board._updateHighlight = update;
   update(src);
