@@ -31,6 +31,10 @@ Then open <http://127.0.0.1:8000/>. `setup-windows.ps1` checks the runtime, down
 .\start-plamo.bat          # or: python manager.py --model 0.8b
 ```
 
+### Desktop / Start menu shortcut
+
+`PLaMo 3 Translate.lnk` is placed on the Desktop and in the current user's Start Menu (**All apps**). Double-clicking it starts the manager if it is down, or **restarts the loaded model** if the manager is already running — handy after a GPU driver update kills `llama-server`. To put a tile on the Start screen: open **Start → All apps**, right-click **PLaMo 3 Translate**, choose **Pin to Start**. (Windows 11 does not allow pinning from a script.)
+
 ## Any other OS
 
 ```bash

@@ -26,6 +26,7 @@ This file preserves the reasoning behind the current design so future contributo
 ## Persistence
 
 - Originally a Startup shortcut; replaced with Task Scheduler task **`PLaMo 3 Translate`**, trigger *At logon* for the current user, action `run-at-logon.bat` → `start-plamo.bat`. The Startup shortcut was removed to avoid duplicate starts.
+- **Idempotent launcher + restart fix**: `start-plamo.bat` now probes `/api/status` first; if the manager is already running it POSTs `/api/restart` and exits instead of starting a second manager and failing on the port check. `/api/restart` originally called `start_model()` directly, which short-circuits when the same model is already loaded, so "restart" did nothing; it now stops the process first. `.lnk` shortcuts on the Desktop and in the Start Menu point to this launcher, so a GPU-driver crash can be fixed with one double-click. Windows 11 cannot pin to Start programmatically; the shortcut appears under All apps and can be pinned manually.
 - Earlier task actions using `cmd /c start "" /min` and nested PowerShell quoting silently produced exit code 0 with no process. A tiny internal wrapper batch file (`run-at-logon.bat`) made quoting unambiguous.
 - The running chain is `svchost.exe (Task Scheduler) → cmd → uv → python (manager.py) → llama-server.exe`, entirely detached from the interactive shell.
 - `run-at-logon.bat` discards output so logs cannot grow without bound.

@@ -355,7 +355,12 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/api/restart":
             cur = MANAGER.last_model or "0.8b"
             try:
+                # start_model() short-circuits when the same model is already running,
+                # so stop it first: restart must actually reload the model.
+                MANAGER.stop()
                 self._send_json(MANAGER.start_model(cur))
+            except ValueError as e:
+                self._send_json({"error": {"message": str(e)}}, 400)
             except RuntimeError as e:
                 self._send_json({"error": {"message": str(e)}}, 500)
             return

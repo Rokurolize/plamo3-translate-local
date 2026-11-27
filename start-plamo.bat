@@ -10,6 +10,18 @@ set "SIZE=%~1"
 if "%SIZE%"=="" set "SIZE=0.8b"
 set "PORT=%~2"
 if "%PORT%"=="" set "PORT=8000"
+echo Checking PLaMo 3 Translate on http://127.0.0.1:%PORT%
+curl.exe -s -o NUL -m 2 http://127.0.0.1:%PORT%/api/status
+if not errorlevel 1 (
+  echo Manager is already running; restarting the loaded model...
+  curl.exe -s -o NUL -m 120 -X POST http://127.0.0.1:%PORT%/api/restart
+  if errorlevel 1 (
+    echo Could not restart the model.
+    exit /b 1
+  )
+  echo Model restarted. Open http://127.0.0.1:%PORT%/ to use it.
+  exit /b 0
+)
 echo Starting PLaMo 3 Translate manager (model %SIZE%) on http://127.0.0.1:%PORT% ^(Ctrl+C to stop^)
 where uv >nul 2>nul
 if not errorlevel 1 (

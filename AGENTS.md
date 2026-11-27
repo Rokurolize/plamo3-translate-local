@@ -18,6 +18,7 @@ This repo packages a *working* local translation service. Treat these as invaria
 8. **Raw PFML is strict.** Pass-through prompts must begin exactly with `<|plamo:tag|>dataset<|plamo:msg|>translation`, and source text must never contain literal `<|plamo:` tokens (the WebUI filters them). Ordinary chat messages must not contain those tokens either — doing so caused a Jinja parser error about reserved PFML tokens.
 9. **Model builds matter.** `unknown tokenizer: 'plamo3'` means llama.cpp is older than b12182. Don't debug prompts before checking the backend build/version.
 10. **Never add unbounded console logging to the Task Scheduler wrapper.** `run-at-logon.bat` deliberately discards output.
+11. **Launcher is idempotent**: `start-plamo.bat` first probes `/api/status`; if the manager is up it POSTs `/api/restart` and exits, otherwise it starts the manager. Keep it pure ASCII. `/api/restart` must call `MANAGER.stop()` before `start_model()` — `start_model()` short-circuits when the same model is already running, so without the stop it is a no-op. User shortcuts point to this launcher.
 
 ## Editing guide
 
